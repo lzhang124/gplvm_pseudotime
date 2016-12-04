@@ -1,2 +1,2 @@
 # gplvm_pseudotime
-6.047 Final Project
+Final project for MIT's 6.047.
