@@ -45,7 +45,7 @@ def covariance_matrix(t, lambda_, sigma):
     return np.exp(-D / (2 * lambda_ ** 2)) + sigma * np.identity(len(t))
 
 
-def cross_covariance_matrix(t1, t2, lambda_, sigma):
+def cross_covariance_matrix(t1, t2, lambda_):
     '''
     Covariance matrix K*_j between t1 and t2 using the squared exponential covariance function.
     @param t1, t2 Arrays of pseudotimes
@@ -232,8 +232,8 @@ def estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
 
     X_p = np.zeros((n, p))
     for i in xrange(p):
-        K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i], sigma_avgs[i])
-        K = covariance_matrix(t_avgs, lambda_avgs[i], sigma_avgs[i]) - sigma[i] * np.identity(len(t_avgs))
+        K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i])
+        K = covariance_matrix(t_avgs, lambda_avgs[i], sigma_avgs[i])
         X_p[:,i] = np.dot(K_star, np.dot(np.linalg.inv(K), X[:,i]))
 
     return X_p
@@ -248,9 +248,11 @@ def choose_samples(n, samples):
         return np.random.choice(n, samples, replace=False)
 
 
-def plot_pseudotime_trace(gplvm, samples):
+def plot_pseudotime_trace(gplvm, samples, show_burn=False):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["t_chain"][params["burn_idx"]:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
+    burn_idx = 0 if show_burn else params["burn_idx"]
+    burn_iter = 0 if show_burn else params["burn"]
+    df = pd.DataFrame(gplvm["t_chain"][burn_idx:,samples], index=np.arange(burn_iter, params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
@@ -304,9 +306,7 @@ def plot_prior(gplvm):
 # Seaborn Setup
 sns.set_style("white")
 
-
 # Synthetic Data
-np.random.seed(1246)
 n = 30
 p = 2
 lambda_ = np.array([1/math.sqrt(2)] * p)
@@ -316,10 +316,10 @@ X = np.zeros((n, p))
 for i in xrange(p):
     X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_real, lambda_[i], sigma[i]))
 
-n_iter = 50000
+# GPLVM Parameters
+n_iter = 100000
 burn = n_iter/2
 thin = n_iter/100
-
 t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
 t_var = np.array([.5e-3] * n)
 lambda_var = np.array([.5e-5] * p)
@@ -328,5 +328,5 @@ sigma_var = np.array([.5e-10] * p)
 gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
 n_samples = choose_samples(n, n)
-plot_pseudotime_trace(gplvm, n_samples)
+plot_pseudotime_trace(gplvm, n_samples, True)
 plot_posterior_estimate(gplvm, X, 1000, t_real)
