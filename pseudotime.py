@@ -42,10 +42,10 @@ def covariance_matrix(t, lambda_, sigma):
     @param lambda_ Value of lambda_j
     '''
     D = distance(t)
-    return np.exp(-D / (2 * lambda_ ** 2)) + sigma * np.identity(n)
+    return np.exp(-D / (2 * lambda_ ** 2)) + sigma * np.identity(len(t))
 
 
-def cross_covariance_matrix(t1, t2, lambda_):
+def cross_covariance_matrix(t1, t2, lambda_, sigma):
     '''
     Covariance matrix K*_j between t1 and t2 using the squared exponential covariance function.
     @param t1, t2 Arrays of pseudotimes
@@ -144,7 +144,7 @@ def acceptance_ratio(X, t_new, t, lambda_new, lambda_, sigma_new, sigma, r):
 
 # GPLVM
 
-def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var, r=1, return_burn=False):
+def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var, r=1):
     '''
     Runs the GPLVM.
     @param X Data array for N points in P dimensions
@@ -158,7 +158,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
     '''
     n, p = X.shape
     chain_size = int(n_iter/thin) # size of thinned chain
-    burn_thin = int(burn/thin) # size of burn region in thinned chain
+    burn_idx = int(burn/thin) # size of burn region in thinned chain
 
     # initialize chains
     t_chain = np.zeros((chain_size, n))
@@ -200,12 +200,10 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
             likelihood_chain[j] = log_likelihood(X, t, lambda_, sigma)
             prior_chain[j] = corp_prior(t, r)
 
-    burn_idx = 0 if return_burn else burn_thin
-
     return {
-        "t_chain" : t_chain[burn_idx:,:],
-        "lambda_chain" : lambda_chain[burn_idx:,:],
-        "sigma_chain" : sigma_chain[burn_idx:,:],
+        "t_chain" : t_chain,
+        "lambda_chain" : lambda_chain,
+        "sigma_chain" : sigma_chain,
         "acceptance_rate" : sum(accepted)/len(accepted),
         "burn_acceptance_rate" : sum(accepted[burn_idx:]/len(accepted[burn_idx:])),
         "r" : r,
@@ -214,7 +212,8 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
         "params" : {
             "n_iter" : n_iter,
             "burn" : burn,
-            "thin" : thin
+            "thin" : thin,
+            "burn_idx" : burn_idx
         }
     }
 
@@ -233,8 +232,8 @@ def estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
 
     X_p = np.zeros((n, p))
     for i in xrange(p):
-        K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i])
-        K = covariance_matrix(t_avgs, lambda_avgs[i], sigma_avgs[i])
+        K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i], sigma_avgs[i])
+        K = covariance_matrix(t_avgs, lambda_avgs[i], sigma_avgs[i]) - sigma[i] * np.identity(len(t_avgs))
         X_p[:,i] = np.dot(K_star, np.dot(np.linalg.inv(K), X[:,i]))
 
     return X_p
@@ -251,7 +250,7 @@ def choose_samples(n, samples):
 
 def plot_pseudotime_trace(gplvm, samples):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["t_chain"][:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm["t_chain"][params["burn_idx"]:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
@@ -260,17 +259,18 @@ def plot_pseudotime_trace(gplvm, samples):
 def plot_kernel_parameter(gplvm, param, samples):
     chain_name = param + "_chain"
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm[chain_name][:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm[chain_name][params["burn_idx"]:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
 
 
 def plot_posterior_estimate(gplvm, X, n, t_real):
+    burn_idx = gplvm["params"]["burn_idx"]
     t_vals = np.linspace(0, 1, num=n)
-    t_avgs = np.mean(gplvm["t_chain"], axis=0)
-    lambda_avgs = np.mean(gplvm["lambda_chain"], axis=0)
-    sigma_avgs = np.mean(gplvm["sigma_chain"], axis=0)
+    t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
+    lambda_avgs = np.mean(gplvm["lambda_chain"][burn_idx:,:], axis=0)
+    sigma_avgs = np.mean(gplvm["sigma_chain"][burn_idx:,:], axis=0)
     X_p = estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs)
     
     # plot X_p
@@ -328,5 +328,5 @@ sigma_var = np.array([.5e-10] * p)
 gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
 n_samples = choose_samples(n, n)
-# plot_pseudotime_trace(gplvm, n_samples)
+plot_pseudotime_trace(gplvm, n_samples)
 plot_posterior_estimate(gplvm, X, 1000, t_real)
