@@ -191,6 +191,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
             sigma = sigma_new
 
         if i % thin == 0:
+            print i # iteration number
             # update traces
             j = i / thin
             t_chain[j,:] = t
@@ -219,14 +220,14 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
     }
 
 
-# Posterior Predictions
+# Posterior Esimate
 
-def predict(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
+def estimate(X, t_vals, t_avgs, lambda_avgs):
     '''
     Returns the posterior mean estimate X_p, where X_p[:,j] = K*_j * K^-1_j * X[:,j].
     @param X Data array for N points in P dimensions
-    @param t_vals Pseudotime values at which to predict
-    @param t_avgs, lambda_avgs, sigma_avgs Averages from the Metropolis Hastings walk
+    @param t_vals Pseudotime values at which to estimate
+    @param t_avgs, lambda_avgs Averages from the Metropolis Hastings walk
     '''
     n = len(t_vals)
     p = X.shape[1]
@@ -235,26 +236,70 @@ def predict(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
     for i in xrange(p):
         K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i])
         K = covariance_matrix(t_avgs, lambda_avgs[i])
-        X_p[:,i] = K_star * np.linalg.inv(K) * X[:,i]
+        X_p[:,i] = np.dot(K_star, np.dot(np.linalg.inv(K), X[:,i]))
 
     return X_p
 
 
 # Plotting Functions
 
-def plot_pseudotime_trace(gplvm, n, samples=10):
+def choose_samples(n, samples):
     if samples == n:
-        cols = np.arange(n)
+        return np.arange(n)
     else:
-        cols = np.random.choice(n, samples, replace=False)
+        return np.random.choice(n, samples, replace=False)
+
+
+def plot_pseudotime_trace(gplvm, samples):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["t_chain"][:,cols], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm["t_chain"][:,samples], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
 
 
-###############################################################################
+def plot_kernel_parameter(gplvm, param, samples):
+    chain_name = param + "_chain"
+    params = gplvm["params"]
+    df = pd.DataFrame(gplvm[chain_name][:,samples], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df.plot(legend=False)
+    sns.despine()
+    plt.show()
+
+
+def plot_posterior_estimate(gplvm, X, n, t_real):
+    t_vals = np.linspace(0, 1, num=n)
+    t_avgs = np.mean(gplvm["t_chain"], axis=0)
+    lambda_avgs = np.mean(gplvm["lambda_chain"], axis=0)
+    X_p = estimate(X, t_vals, t_avgs, lambda_avgs)
+    
+    # plot X_p
+    scatter = plt.scatter(X_p[:,0], X_p[:,1], s=100, c=t_vals, cmap="RdYlBu", lw=0)
+    # plot X
+    plt.scatter(X[:,0], X[:,1], s=75, c=t_real, cmap="RdYlBu")
+    cb = plt.colorbar(scatter)
+    cb.outline.set_visible(False)
+    sns.despine()
+    plt.show()
+
+
+def plot_likelihood(gplvm):
+    params = gplvm["params"]
+    df = pd.DataFrame(gplvm["likelihood_chain"], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df.plot(legend=False)
+    sns.despine()
+    plt.show()
+
+
+def plot_prior(gplvm):
+    params = gplvm["params"]
+    df = pd.DataFrame(gplvm["prior_chain"], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df.plot(legend=False)
+    sns.despine()
+    plt.show()
+
+
+#################################################
 
 # Seaborn Setup
 sns.set_style("white")
@@ -271,11 +316,6 @@ X = np.zeros((n, p))
 for i in xrange(p):
     X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_real, lambda_[i]) + sigma[i] * np.identity(n))
 
-# plot X
-# plt.scatter(X[:,0], X[:,1], c=t_real)
-# sns.despine()
-# plt.show()
-
 n_iter = 3000
 burn = 0
 thin = 60
@@ -286,6 +326,7 @@ lambda_var = np.array([.5e-5] * p)
 sigma_var = np.array([.5e-10] * p)
 
 gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
-print gplvm["acceptance_rate"]
 
-plot_pseudotime_trace(gplvm, n, n)
+n_samples = choose_samples(n, n)
+# plot_pseudotime_trace(gplvm, n_samples)
+plot_posterior_estimate(gplvm, X, 1000, t_real)
