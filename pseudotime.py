@@ -214,8 +214,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
         "params" : {
             "n_iter" : n_iter,
             "burn" : burn,
-            "thin" : thin,
-            "burn_idx" : burn_idx
+            "thin" : thin
         }
     }
 
@@ -252,7 +251,7 @@ def choose_samples(n, samples):
 
 def plot_pseudotime_trace(gplvm, samples):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["t_chain"][:,samples], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm["t_chain"][:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
@@ -261,7 +260,7 @@ def plot_pseudotime_trace(gplvm, samples):
 def plot_kernel_parameter(gplvm, param, samples):
     chain_name = param + "_chain"
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm[chain_name][:,samples], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm[chain_name][:,samples], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
@@ -285,7 +284,7 @@ def plot_posterior_estimate(gplvm, X, n, t_real):
 
 def plot_likelihood(gplvm):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["likelihood_chain"], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm["likelihood_chain"], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
@@ -293,7 +292,7 @@ def plot_likelihood(gplvm):
 
 def plot_prior(gplvm):
     params = gplvm["params"]
-    df = pd.DataFrame(gplvm["prior_chain"], index=np.arange(params["burn_idx"], params["n_iter"], params["thin"]))
+    df = pd.DataFrame(gplvm["prior_chain"], index=np.arange(params["burn"], params["n_iter"], params["thin"]))
     df.plot(legend=False)
     sns.despine()
     plt.show()
