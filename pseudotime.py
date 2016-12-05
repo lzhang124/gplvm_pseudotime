@@ -35,14 +35,14 @@ def cross_distance(t1, t2):
     return D
 
 
-def covariance_matrix(t, lambda_):
+def covariance_matrix(t, lambda_, sigma):
     '''
     Covariance matrix K_j of t using the squared exponential covariance function.
     @param t Array of pseudotimes of length N
     @param lambda_ Value of lambda_j
     '''
     D = distance(t)
-    return np.exp(-D / (2 * lambda_ ** 2))
+    return np.exp(-D / (2 * lambda_ ** 2)) + sigma * np.identity(n)
 
 
 def cross_covariance_matrix(t1, t2, lambda_):
@@ -66,7 +66,7 @@ def log_likelihood(X, t, lambda_, sigma):
     n = len(t)
     likelihood = 0
     for i in xrange(X.shape[1]):
-        likelihood += stats.multivariate_normal.logpdf(X[:,i], mean=np.zeros(n), cov=covariance_matrix(t, lambda_[i]) + sigma[i] * np.identity(n))
+        likelihood += stats.multivariate_normal.logpdf(X[:,i], mean=np.zeros(n), cov=covariance_matrix(t, lambda_[i], sigma[i]))
     return likelihood
 
 
@@ -221,7 +221,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
 
 # Posterior Esimate
 
-def estimate(X, t_vals, t_avgs, lambda_avgs):
+def estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
     '''
     Returns the posterior mean estimate X_p, where X_p[:,j] = K*_j * K^-1_j * X[:,j].
     @param X Data array for N points in P dimensions
@@ -234,7 +234,7 @@ def estimate(X, t_vals, t_avgs, lambda_avgs):
     X_p = np.zeros((n, p))
     for i in xrange(p):
         K_star = cross_covariance_matrix(t_vals, t_avgs, lambda_avgs[i])
-        K = covariance_matrix(t_avgs, lambda_avgs[i])
+        K = covariance_matrix(t_avgs, lambda_avgs[i], sigma_avgs[i])
         X_p[:,i] = np.dot(K_star, np.dot(np.linalg.inv(K), X[:,i]))
 
     return X_p
@@ -270,7 +270,8 @@ def plot_posterior_estimate(gplvm, X, n, t_real):
     t_vals = np.linspace(0, 1, num=n)
     t_avgs = np.mean(gplvm["t_chain"], axis=0)
     lambda_avgs = np.mean(gplvm["lambda_chain"], axis=0)
-    X_p = estimate(X, t_vals, t_avgs, lambda_avgs)
+    sigma_avgs = np.mean(gplvm["sigma_chain"], axis=0)
+    X_p = estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs)
     
     # plot X_p
     scatter = plt.scatter(X_p[:,0], X_p[:,1], s=100, c=t_vals, cmap="RdYlBu", lw=0)
@@ -313,11 +314,11 @@ sigma = np.array([1e-3] * p)
 t_real = np.random.sample(n)
 X = np.zeros((n, p))
 for i in xrange(p):
-    X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_real, lambda_[i]) + sigma[i] * np.identity(n))
+    X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_real, lambda_[i], sigma[i]))
 
-n_iter = 3000
-burn = 0
-thin = 60
+n_iter = 50000
+burn = n_iter/2
+thin = n_iter/100
 
 t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
 t_var = np.array([.5e-3] * n)
