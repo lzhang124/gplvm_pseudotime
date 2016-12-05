@@ -39,7 +39,7 @@ def covariance_matrix(t, lambda_, sigma):
     '''
     Covariance matrix K_j of t using the squared exponential covariance function.
     @param t Array of pseudotimes of length N
-    @param lambda_ Value of lambda_j
+    @param lambda_, sigma Values of lambda_j and sigma_j
     '''
     D = distance(t)
     return np.exp(-D / (2 * lambda_ ** 2)) + sigma * np.identity(len(t))
@@ -70,25 +70,12 @@ def log_likelihood(X, t, lambda_, sigma):
     return likelihood
 
 
-def sample(mean, var, lower=0, upper=float("inf")):
-    '''
-    Sample values from a truncated normal of (mean, var) in the range [lower, upper].
-    @param mean Array of means
-    @param var Array of variances
-    @param lower Lower bound
-    @param upper Upper bound
-    '''
-    a = (lower - mean) / var
-    b = upper if upper == float("inf") else (upper - mean) / var
-    return stats.truncnorm.rvs(a, b, loc=mean, scale=var)
-
-
 # Priors
 
 def corp_prior(t, r=1):
     '''
     Coulomb repulsive process (Corp) prior on pseudotimes.
-    @param Array of pseudotimes of length N
+    @param t Array of pseudotimes of length N
     @param r Repulsion parameter
     '''
     # uniform prior
@@ -142,6 +129,19 @@ def acceptance_ratio(X, t_new, t, lambda_new, lambda_, sigma_new, sigma, r):
     return likelihood + t_prior + t_prior + s_prior
 
 
+def propose(mean, var, lower=0, upper=float("inf")):
+    '''
+    Propose values from a truncated normal of (mean, var) in the range [lower, upper].
+    @param mean Array of means
+    @param var Array of variances
+    @param lower Lower bound
+    @param upper Upper bound
+    '''
+    a = (lower - mean) / var
+    b = upper if upper == float("inf") else (upper - mean) / var
+    return stats.truncnorm.rvs(a, b, loc=mean, scale=var)
+
+
 # GPLVM
 
 def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var, r=1):
@@ -154,7 +154,6 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
     @param t, lambda_, sigma Initial values for the Markov Chain
     @param t_var, lambda_var, sigma_var Variances for the proposed distributions
     @param r Corp parameter
-    @param return_burn If the burn-in period of the traces should be returned
     '''
     n, p = X.shape
     chain_size = int(n_iter/thin) # size of thinned chain
@@ -175,10 +174,10 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
 
     # Metropolis Hastings
     for i in xrange(n_iter):
-        # sample new t, lambda_, sigma
-        t_new = sample(t, t_var, 0, 1)
-        lambda_new = sample(lambda_, lambda_var)
-        sigma_new = sample(sigma, sigma_var)
+        # propose new t, lambda_, sigma
+        t_new = propose(t, t_var, 0, 1)
+        lambda_new = propose(lambda_, lambda_var)
+        sigma_new = propose(sigma, sigma_var)
 
         # calculate acceptance ratio
         acceptance = acceptance_ratio(X, t_new, t, lambda_new, lambda_, sigma_new, sigma, r)
@@ -225,7 +224,7 @@ def estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs):
     Returns the posterior mean estimate X_p, where X_p[:,j] = K*_j * K^-1_j * X[:,j].
     @param X Data array for N points in P dimensions
     @param t_vals Pseudotime values at which to estimate
-    @param t_avgs, lambda_avgs Averages from the Metropolis Hastings walk
+    @param t_avgs, lambda_avgs, sigma_avgs Averages from the Metropolis Hastings walk
     '''
     n = len(t_vals)
     p = X.shape[1]
@@ -285,6 +284,7 @@ def plot_posterior_estimate(gplvm, X, n, t_true):
     plt.scatter(X[:,0], X[:,1], s=75, c=t_true, cmap="RdYlBu")
     cb = plt.colorbar(scatter)
     cb.outline.set_visible(False)
+    cb.set_label('Pseudotime', rotation=90)
     plt.xlabel("Feature 1")
     plt.ylabel("Feature 2")
     sns.despine()
@@ -330,7 +330,7 @@ def main():
     sns.set_style("white")
 
     # Synthetic Data
-    n = 30
+    n = 100
     p = 2
     lambda_ = np.array([1/math.sqrt(2)] * p)
     sigma = np.array([1e-3] * p)
@@ -350,7 +350,7 @@ def main():
 
     gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
-    n_samples = choose_samples(n, n)
+    n_samples = choose_samples(n, 25)
     plot_pseudotime_trace(gplvm, n_samples, True)
     plot_posterior_estimate(gplvm, X, 1000, t_true)
     plot_regression(gplvm, t_true)
