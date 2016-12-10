@@ -155,6 +155,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
     @param t_var, lambda_var, sigma_var Variances for the proposed distributions
     @param r Corp parameter
     '''
+    print "start"
     n, p = X.shape
     chain_size = int(n_iter/thin) # size of thinned chain
     burn_idx = int(burn/thin) # size of burn region in thinned chain
@@ -172,6 +173,7 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
     prior_chain[0] = corp_prior(t, r)
     accepted = np.zeros(n_iter)
 
+    print "finish setup"
     # Metropolis Hastings
     for i in xrange(n_iter):
         # propose new t, lambda_, sigma
@@ -323,7 +325,7 @@ def plot_regression(gplvm, t_true):
     plt.show()
 
 
-def plot_regression_breslow(gplvm, breslow):
+# def plot_regression_breslow(gplvm, breslow):
 
 
 
@@ -335,8 +337,6 @@ def read_breslow_data(filename):
 
 def read_gene_data(filename):
     return pd.read_table(filename, header=0, index_col=0).sort_index()
-
-
 
 
 #################################################
@@ -371,7 +371,7 @@ def main():
     sigma = np.array([1e-3] * p)
     sigma_var = np.array([.5e-10] * p)
 
-    gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
+    gplvm = GPLVM(gene_df.as_matrix(), n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
     n_samples = choose_samples(n, 25)
     plot_pseudotime_trace(gplvm, n_samples, True)
