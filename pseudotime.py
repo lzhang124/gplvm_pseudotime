@@ -271,9 +271,9 @@ def plot_kernel_parameter(gplvm, param, samples):
     plt.show()
 
 
-def plot_posterior_estimate(gplvm, X, n, t_true):
+def plot_posterior_estimate(gplvm, X, t_true):
     burn_idx = gplvm["params"]["burn_idx"]
-    t_vals = np.linspace(0, 1, num=n)
+    t_vals = np.linspace(0, 1, num=1000)
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
     lambda_avgs = np.mean(gplvm["lambda_chain"][burn_idx:,:], axis=0)
     sigma_avgs = np.mean(gplvm["sigma_chain"][burn_idx:,:], axis=0)
@@ -315,37 +315,43 @@ def plot_prior(gplvm):
 def plot_regression(gplvm, t_true):
     burn_idx = gplvm["params"]["burn_idx"]
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
-    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
-    plt.errorbar(t_true, t_avgs, yerr=t_std, fmt='o', elinewidth=.5)
+    sns.regplot(x=t_true, y=t_avgs)
     plt.xlim([0,1])
     plt.ylim([0,1])
-    plt.plot((0,1), (0,1), 'k-')
     plt.xlabel("'True' Pseudotime")
     plt.ylabel("MAP Pseudotime")
     sns.despine()
     plt.show()
 
 
-def plot_posterior_estimate_breslow(gplvm, X, n, breslow):
-    # TODO
-    pass
-
-
-def plot_posterior_estimate_pc(gplvm, X, n):
-    # TODO
-    pass
+def plot_posterior_estimate_pc(gplvm, X):
+    burn_idx = gplvm["params"]["burn_idx"]
+    t_vals = np.linspace(0, 1, num=1000)
+    t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
+    lambda_avgs = np.mean(gplvm["lambda_chain"][burn_idx:,:], axis=0)
+    sigma_avgs = np.mean(gplvm["sigma_chain"][burn_idx:,:], axis=0)
+    X_p = estimate(X, t_vals, t_avgs, lambda_avgs, sigma_avgs)
+    
+    # plot X_p
+    scatter = plt.scatter(X_p[:,0], X_p[:,1], s=100, c=t_vals, cmap="RdYlBu", lw=0)
+    # plot X
+    plt.scatter(X[:,0], X[:,1], s=75, c=t_true, cmap="RdYlBu")
+    cb = plt.colorbar(scatter)
+    cb.outline.set_visible(False)
+    cb.set_label('Pseudotime', rotation=90)
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("Principal Component 2")
+    sns.despine()
+    plt.show()
 
 
 def plot_regression_breslow(gplvm, breslow):
     burn_idx = gplvm["params"]["burn_idx"]
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
-    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
-    data = np.column_stack((breslow.as_matrix(), t_avgs, t_std))
+    data = np.column_stack((breslow.as_matrix(), t_avgs))
     data = data[~np.isnan(data).any(axis=1)]
-    plt.errorbar(data[:,0], data[:,1], yerr=data[:,2], fmt='o', elinewidth=.5)
-    # plt.xlim([0,75])
+    sns.regplot(x=data[:,0], y=data[:,1])
     plt.ylim([0,1])
-    # plt.plot((0,74), (0,1), 'k-')
     plt.xlabel("Breslow Depth")
     plt.ylabel("MAP Pseudotime")
     sns.despine()
@@ -355,16 +361,12 @@ def plot_regression_breslow(gplvm, breslow):
 def plot_regression_pc(gplvm, X):
     burn_idx = gplvm["params"]["burn_idx"]
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
-    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
-    for pc in xrange(X.shape[1]):
-        plt.errorbar(X[:,pc], t_avgs, yerr=t_std, fmt='o', elinewidth=.5)
-        # plt.xlim([0,1])
-        plt.ylim([0,1])
-        # plt.plot((0,1), (0,1), 'k-')
-        plt.xlabel("Principal Component " + str(pc + 1))
-        plt.ylabel("MAP Pseudotime")
-        sns.despine()
-        plt.show()
+    sns.regplot(x=X[:,0], y=t_avgs)
+    plt.ylim([0,1])
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("MAP Pseudotime")
+    sns.despine()
+    plt.show()
 
 
 # Read Data
@@ -420,7 +422,7 @@ def main():
 
     n_samples = choose_samples(n, 25)
     plot_pseudotime_trace(gplvm, n_samples, True)
-    # plot_posterior_estimate(gplvm, X, 1000, t_true)
+    # plot_posterior_estimate(gplvm, X, t_true)
     # plot_regression(gplvm, t_true)
     # plot_posterior_estimate_breslow(gplvm, X, n, breslow_df)
     # plot_posterior_estimate_pc(gplvm, X, n)
