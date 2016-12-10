@@ -377,8 +377,9 @@ def main():
     t_var = np.array([.5e-3] * n)
     lambda_var = np.array([.5e-5] * p)
     sigma_var = np.array([.5e-10] * p)
+    X = gene_df.as_matrix()
 
-    gplvm = GPLVM(gene_df.as_matrix(), n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
+    gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
     n_samples = choose_samples(n, 25)
     plot_pseudotime_trace(gplvm, n_samples, True)
