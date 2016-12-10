@@ -1,4 +1,4 @@
-tcga_participant_barcode	breslow_depth_value
+    breslow_depth_value
 TCGA-D9-A1X3	12
 TCGA-DA-A3F5	0.4
 TCGA-EB-A5SE	4
@@ -261,7 +261,6 @@ TCGA-EE-A3J4	2
 TCGA-EE-A3J7	1.12
 TCGA-D3-A8GJ	2.4
 TCGA-EE-A29B	4
-TCGA-GN-A269	5
 TCGA-BF-A5EP	70
 TCGA-EB-A42Y	5
 TCGA-BF-A5EQ	5

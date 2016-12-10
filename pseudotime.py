@@ -323,23 +323,29 @@ def plot_regression(gplvm, t_true):
     plt.show()
 
 
+def plot_regression_breslow(gplvm, breslow):
+
+
+
 # Read Data
 
 def read_breslow_data(filename):
-    return pd.read_table(filename, header=0, index_col=0)
+    return pd.read_table(filename, header=0, index_col=0).sort_index()
 
 
 def read_gene_data(filename):
-    return pd.read_table('mrnaseq_thinned.txt', header=0, index_col=0).transpose()
+    return pd.read_table(filename, header=0, index_col=0).sort_index()
+
+
 
 
 #################################################
 
 def main():
-    # # Seaborn Setup
-    # sns.set_style("white")
+    # Seaborn Setup
+    sns.set_style("white")
 
-    # # Synthetic Data
+    # Synthetic Data
     # n = 100
     # p = 2
     # lambda_ = np.array([1/math.sqrt(2)] * p)
@@ -349,24 +355,28 @@ def main():
     # for i in xrange(p):
     #     X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_true, lambda_[i], sigma[i]))
 
-    # # GPLVM Parameters
-    # n_iter = 100000
-    # burn = n_iter/2
-    # thin = n_iter/100
-    # t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
-    # t_var = np.array([.5e-3] * n)
-    # lambda_var = np.array([.5e-5] * p)
-    # sigma_var = np.array([.5e-10] * p)
-
-    # gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
-
-    # n_samples = choose_samples(n, 25)
-    # plot_pseudotime_trace(gplvm, n_samples, True)
-    # plot_posterior_estimate(gplvm, X, 1000, t_true)
-    # plot_regression(gplvm, t_true)
-
+    # Real Data
     breslow_df = read_breslow_data('breslow_data.txt')
     gene_df = read_gene_data('mrnaseq_data.txt')
+    n, p = gene_df.shape
+
+    # GPLVM Parameters
+    n_iter = 1000
+    burn = n_iter/2
+    thin = n_iter/100
+    t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
+    t_var = np.array([.5e-3] * n)
+    lambda_ = np.array([1/math.sqrt(2)] * p)
+    lambda_var = np.array([.5e-5] * p)
+    sigma = np.array([1e-3] * p)
+    sigma_var = np.array([.5e-10] * p)
+
+    gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
+
+    n_samples = choose_samples(n, 25)
+    plot_pseudotime_trace(gplvm, n_samples, True)
+    # plot_posterior_estimate(gplvm, X, 1000, t_true)
+    # plot_regression(gplvm, t_true)
 
 
 main()
