@@ -1,4 +1,3 @@
-    breslow_depth_value
 TCGA-D9-A1X3	12
 TCGA-DA-A3F5	0.4
 TCGA-EB-A5SE	4

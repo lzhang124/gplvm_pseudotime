@@ -1,3 +1,4 @@
+from sklearn.decomposition import PCA
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -205,9 +206,9 @@ def GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var
         "sigma_chain" : sigma_chain,
         "acceptance_rate" : sum(accepted)/len(accepted),
         "burn_acceptance_rate" : sum(accepted[burn_idx:]/len(accepted[burn_idx:])),
-        "r" : r,
         "likelihood_chain" : likelihood_chain,
         "prior_chain" : prior_chain,
+        "r" : r,
         "params" : {
             "n_iter" : n_iter,
             "burn" : burn,
@@ -314,9 +315,11 @@ def plot_prior(gplvm):
 def plot_regression(gplvm, t_true):
     burn_idx = gplvm["params"]["burn_idx"]
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
-    sns.regplot(x=t_true, y=t_avgs)
+    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
+    plt.errorbar(t_true, t_avgs, yerr=t_std, fmt='o', elinewidth=.5)
     plt.xlim([0,1])
     plt.ylim([0,1])
+    plt.plot((0,1), (0,1), 'k-')
     plt.xlabel("'True' Pseudotime")
     plt.ylabel("MAP Pseudotime")
     sns.despine()
@@ -329,21 +332,50 @@ def plot_posterior_estimate_breslow(gplvm, X, n, breslow):
 
 
 def plot_regression_breslow(gplvm, breslow):
-    # TODO
-    pass
+    burn_idx = gplvm["params"]["burn_idx"]
+    t_avgs = pd.DataFrame(np.mean(gplvm["t_chain"][burn_idx:,:], axis=0), column='pseudotime')
+    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
+    df = pd.concat([breslow, t_avgs], axis=1)
+    df = df.dropna()
+    plt.errorbar(df['breslow_depth'], df['pseudotime'], yerr=t_std, fmt='o', elinewidth=.5)
+    plt.xlim([0,75])
+    plt.ylim([0,1])
+    plt.plot((0,74), (0,1), 'k-')
+    plt.xlabel("Breslow Depth")
+    plt.ylabel("MAP Pseudotime")
+    sns.despine()
+    plt.show()
 
 
-# TODO maybe against principal curve?
+def plot_regression_pc(gplvm, X):
+    burn_idx = gplvm["params"]["burn_idx"]
+    t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
+    t_std = np.std(gplvm["t_chain"][burn_idx:,:], axis=0)
+    for pc in xrange(X.shape[1]):
+        plt.errorbar(X[:,pc], t_avgs, yerr=t_std, fmt='o', elinewidth=.5)
+        plt.xlim([0,75])
+        plot.ylim([0,1])
+        plt.plot((0,74), (0,1), 'k-')
+        plt.xlabel("Principal Component " + (pc + 1))
+        plt.ylabel("MAP Pseudotime")
+        sns.despine()
+        plt.show()
 
 
 # Read Data
 
 def read_breslow_data(filename):
-    return pd.read_table(filename, header=0, index_col=0).sort_index()
+    return pd.read_table(filename, index_col=0).sort_index()
 
 
-def read_gene_data(filename):
-    return pd.read_table(filename, header=0, index_col=0).sort_index()
+def read_gene_data(filename, components):
+    df = pd.read_table(filename, header=0, index_col=0).sort_index()
+    # drop genes with NAs
+    df = df.dropna(axis=1)
+    # reduce genes to n_components
+    pca = PCA(n_components=components)
+    reduced = pca.fit_transform(df.as_matrix())
+    return pd.DataFrame(reduced, index=df.index)
 
 
 #################################################
@@ -353,38 +385,38 @@ def main():
     sns.set_style("white")
 
     # Synthetic Data
-    # n = 100
-    # p = 2
-    # lambda_ = np.array([1/math.sqrt(2)] * p)
-    # sigma = np.array([1e-3] * p)
-    # t_true = np.random.sample(n)
-    # X = np.zeros((n, p))
-    # for i in xrange(p):
-    #     X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_true, lambda_[i], sigma[i]))
-
-    # Real Data
-    breslow_df = read_breslow_data('breslow_data.txt')
-    gene_df = read_gene_data('mrnaseq_data.txt')
-    n, p = gene_df.shape
+    n = 50
+    p = 2
     lambda_ = np.array([1/math.sqrt(2)] * p)
     sigma = np.array([1e-3] * p)
+    t_true = np.random.sample(n)
+    X = np.zeros((n, p))
+    for i in xrange(p):
+        X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_true, lambda_[i], sigma[i]))
+
+    # Real Data
+    # breslow_df = read_breslow_data('breslow_data.txt')
+    # gene_df = read_gene_data('mrnaseq_data.txt', 5)
+    # n, p = gene_df.shape
+    # lambda_ = np.array([1/math.sqrt(2)] * p)
+    # sigma = np.array([1e-3] * p)
+    # X = gene_df.as_matrix()
 
     # GPLVM Parameters
-    n_iter = 1000
+    n_iter = 100000
     burn = n_iter/2
     thin = n_iter/100
     t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
     t_var = np.array([.5e-3] * n)
     lambda_var = np.array([.5e-5] * p)
     sigma_var = np.array([.5e-10] * p)
-    X = gene_df.as_matrix()
 
     gplvm = GPLVM(X, n_iter, burn, thin, t, t_var, lambda_, lambda_var, sigma, sigma_var)
 
     n_samples = choose_samples(n, 25)
     plot_pseudotime_trace(gplvm, n_samples, True)
-    # plot_posterior_estimate(gplvm, X, 1000, t_true)
-    # plot_regression(gplvm, t_true)
+    plot_posterior_estimate(gplvm, X, 1000, t_true)
+    plot_regression(gplvm, t_true)
 
 
 main()
