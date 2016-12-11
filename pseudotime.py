@@ -1,4 +1,5 @@
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import scale
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -324,7 +325,7 @@ def plot_regression(gplvm, t_true):
     plt.show()
 
 
-def plot_posterior_estimate_pc(gplvm, X):
+def plot_posterior_estimate_pc(gplvm, X, breslow):
     burn_idx = gplvm["params"]["burn_idx"]
     t_vals = np.linspace(0, 1, num=1000)
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
@@ -335,12 +336,12 @@ def plot_posterior_estimate_pc(gplvm, X):
     # plot X_p
     scatter = plt.scatter(X_p[:,0], X_p[:,1], s=100, c=t_vals, cmap="RdYlBu", lw=0)
     # plot X
-    plt.scatter(X[:,0], X[:,1], s=75, c=t_true, cmap="RdYlBu")
+    plt.scatter(X[:,0], X[:,1], s=75, c=breslow.transpose().as_matrix(), cmap="RdYlBu")
     cb = plt.colorbar(scatter)
     cb.outline.set_visible(False)
     cb.set_label('Pseudotime', rotation=90)
-    plt.xlabel("Principal Component 1")
-    plt.ylabel("Principal Component 2")
+    plt.xlabel("Scaled Principal Component 1")
+    plt.ylabel("Scaled Principal Component 2")
     sns.despine()
     plt.show()
 
@@ -348,9 +349,8 @@ def plot_posterior_estimate_pc(gplvm, X):
 def plot_regression_breslow(gplvm, breslow):
     burn_idx = gplvm["params"]["burn_idx"]
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
-    data = np.column_stack((breslow.as_matrix(), t_avgs))
-    data = data[~np.isnan(data).any(axis=1)]
-    sns.regplot(x=data[:,0], y=data[:,1])
+    sns.regplot(x=breslow.transpose().as_matrix().flatten(), y=t_avgs)
+    plt.xlim([0,10])
     plt.ylim([0,1])
     plt.xlabel("Breslow Depth")
     plt.ylabel("MAP Pseudotime")
@@ -363,7 +363,7 @@ def plot_regression_pc(gplvm, X):
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
     sns.regplot(x=X[:,0], y=t_avgs)
     plt.ylim([0,1])
-    plt.xlabel("Principal Component 1")
+    plt.xlabel("Scaled Principal Component 1")
     plt.ylabel("MAP Pseudotime")
     sns.despine()
     plt.show()
@@ -371,18 +371,17 @@ def plot_regression_pc(gplvm, X):
 
 # Read Data
 
-def read_breslow_data(filename):
-    return pd.read_table(filename, header=0, index_col=0).sort_index()
+def read_breslow_data(filename, skip):
+    return pd.read_table(filename, header=0, index_col=0, skiprows=skip).sort_index()
 
 
-def read_gene_data(filename, components):
-    df = pd.read_table(filename, header=0, index_col=0).sort_index()
-    # drop genes with NAs
-    df = df.dropna(axis=1)
-    # reduce genes to n_components
+
+def read_gene_data(filename, skip, components):
+    df = pd.read_table(filename, header=0, index_col=0, skiprows=skip).sort_index()
+    # reduce genes to principal components
     pca = PCA(n_components=components)
     reduced = pca.fit_transform(df.as_matrix())
-    return pd.DataFrame(reduced, index=df.index)
+    return pd.DataFrame(scale(reduced), index=df.index)
 
 
 #################################################
@@ -402,17 +401,18 @@ def main():
     #     X[:,i] = stats.multivariate_normal.rvs(mean=np.zeros(n), cov=covariance_matrix(t_true, lambda_[i], sigma[i]))
 
     # Real Data
-    breslow_df = read_breslow_data('breslow_data.txt')
-    gene_df = read_gene_data('mrnaseq_data.txt', 2)
+    skips = choose_samples(309, 209)
+    breslow_df = read_breslow_data('breslow_data.txt', skips)
+    gene_df = read_gene_data('mrnaseq_data.txt', skips, 2)
     n, p = gene_df.shape
-    lambda_ = np.array([1/math.sqrt(2)] * p)
-    sigma = np.array([1e-3] * p)
+    lambda_ = np.array([1/math.sqrt(50)] * p)
+    sigma = np.std(gene_df.as_matrix(), axis=0) ** 2
     X = gene_df.as_matrix()
 
     # GPLVM Parameters
-    n_iter = 10
+    n_iter = 100000
     burn = n_iter/2
-    thin = n_iter/10
+    thin = n_iter/100
     t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
     t_var = np.array([.5e-3] * n)
     lambda_var = np.array([.5e-5] * p)
@@ -424,8 +424,7 @@ def main():
     plot_pseudotime_trace(gplvm, n_samples, True)
     # plot_posterior_estimate(gplvm, X, t_true)
     # plot_regression(gplvm, t_true)
-    # plot_posterior_estimate_breslow(gplvm, X, n, breslow_df)
-    # plot_posterior_estimate_pc(gplvm, X, n)
+    plot_posterior_estimate_pc(gplvm, X, breslow_df)
     plot_regression_breslow(gplvm, breslow_df)
     plot_regression_pc(gplvm, X)
 
