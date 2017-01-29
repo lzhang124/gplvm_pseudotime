@@ -1,4 +1,4 @@
-from sklearn.decomposition import PCA
+from sklearn.manifold import SpectralEmbedding
 from sklearn.preprocessing import scale
 import math
 import matplotlib.pyplot as plt
@@ -340,8 +340,8 @@ def plot_posterior_estimate_pc(gplvm, X, breslow):
     cb = plt.colorbar(scatter)
     cb.outline.set_visible(False)
     cb.set_label('Pseudotime', rotation=90)
-    plt.xlabel("Scaled Principal Component 1")
-    plt.ylabel("Scaled Principal Component 2")
+    plt.xlabel("Scaled Reduced Component 1")
+    plt.ylabel("Scaled Reduced Component 2")
     sns.despine()
     plt.show()
 
@@ -363,7 +363,7 @@ def plot_regression_pc(gplvm, X):
     t_avgs = np.mean(gplvm["t_chain"][burn_idx:,:], axis=0)
     sns.regplot(x=X[:,0], y=t_avgs)
     plt.ylim([0,1])
-    plt.xlabel("Scaled Principal Component 1")
+    plt.xlabel("Scaled Reduced Component 1")
     plt.ylabel("MAP Pseudotime")
     sns.despine()
     plt.show()
@@ -375,12 +375,11 @@ def read_breslow_data(filename, skip):
     return pd.read_table(filename, header=0, index_col=0, skiprows=skip).sort_index()
 
 
-
 def read_gene_data(filename, skip, components):
     df = pd.read_table(filename, header=0, index_col=0, skiprows=skip).sort_index()
-    # reduce genes to principal components
-    pca = PCA(n_components=components)
-    reduced = pca.fit_transform(df.as_matrix())
+    # reduce genes with laplacian eigenmaps
+    laplacian = SpectralEmbedding(n_components=components)
+    reduced = laplacian.fit_transform(df.as_matrix())
     return pd.DataFrame(scale(reduced), index=df.index)
 
 
@@ -410,7 +409,7 @@ def main():
     X = gene_df.as_matrix()
 
     # GPLVM Parameters
-    n_iter = 100000
+    n_iter = 10000
     burn = n_iter/2
     thin = n_iter/100
     t = stats.uniform.rvs(loc=.499, scale=.002, size=n)
